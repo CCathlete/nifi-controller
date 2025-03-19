@@ -42,7 +42,23 @@ public class NiFiClientImpl implements NiFiClient {
 
   @Override
   public void deleteProcessGroup(String processGroupId) {
-    this.webClient.delete().uri("/process-groups/{processGroupId}", processGroupId).retrieve().toBodilessEntity()
+    this.webClient.get()
+        .uri("/process-groups/{processGroupId}", processGroupId)
+        .retrieve()
+        .bodyToMono(Map.class) // Returns a raw Map<?, ?>
+        .map(response -> { // An arrow function that checks the types of the response.
+          if (!(response.get("revision") instanceof Map revision)) {
+            throw new RuntimeException("Unexpected response structure: " + response);
+          }
+          if (!(revision.get("version") instanceof Integer version)) {
+            throw new RuntimeException("Version is not an Integer: " + revision);
+          }
+          return version;
+        })
+        .flatMap(version -> this.webClient.delete()
+            .uri("/process-groups/{processGroupId}?version={version}", processGroupId, version)
+            .retrieve()
+            .toBodilessEntity())
         .block();
   }
 
